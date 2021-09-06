@@ -23,6 +23,11 @@ class CheckstyleCodeActions {
 	public function new() {}
 
 	/**
+	 * The title for the code action which executes all auto-fixes in the selected range.
+	 */
+	static final TITLE_FIX_ALL = "Fix all style problems";
+
+	/**
 	 * This function is run as a callback by VSCode, and provides the necessary data
 	 * for a list of automated code actions to be generated.
 	 * 
@@ -60,7 +65,11 @@ class CheckstyleCodeActions {
 		// Move the code actions from the map to the output array and submit it.
 		var commands:Array<EitherType<Command, CodeAction>> = [];
 		for (name in actions.keys()) {
-			commands.push(actions.get(name));
+			var action = actions.get(name);
+			if (action.diagnostics.length > 1) {
+				renameCodeAction(action);
+			}
+			commands.push(action);
 		}
 		return commands;
 	}
@@ -69,6 +78,30 @@ class CheckstyleCodeActions {
 		if (token.isCancellationRequested)
 			return codeAction;
 		return codeAction;
+	}
+
+	/**
+	 * Given a code action, rename it as appropriate.
+	 * If it contains multiple diagnostics, count them up.
+	 */
+	function renameCodeAction(codeAction:CodeAction) {
+		// Count the number of actions used.
+		var actionCount = codeAction.diagnostics.length;
+		var actionTitle = codeAction.title;
+		switch (actionTitle) {
+			case "Change single quotes to double quotes":
+				// This fix performs two actions.
+				actionCount = Math.round(actionCount / 2);
+			case "Change double quotes to single quotes":
+				// This fix performs two actions.
+				actionCount = Math.round(actionCount / 2);
+			case TITLE_FIX_ALL:
+				// Don't rename the action.
+				return;
+		}
+
+		// Rename the action to indicate the number of issues in the range.
+		codeAction.title = 'Fix $actionCount instances of "$actionTitle"';
 	}
 
 	/**
@@ -332,15 +365,35 @@ class CheckstyleCodeActions {
 	 * This is what causes multiple code actions to be combined into one if the action already exists.
 	 */
 	function createOrGetAction(actions:Map<String, CodeAction>, title:String, diagnostic:Diagnostic):CodeAction {
+		// Append to the existing action with the same name.
 		if (actions.exists(title)) {
 			var action = actions.get(title);
 			action.diagnostics.push(diagnostic);
 			return action;
 		}
+		// Create a new action with this name.
 		var action = new CodeAction(title, CodeActionKind.QuickFix);
 		action.diagnostics = [diagnostic];
 		action.edit = new WorkspaceEdit();
 		actions.set(title, action);
+		return action;
+	}
+
+	/**
+	 * Access the `actions` map to get the 'Fix all' action, and add onto it.
+	 */
+	function createOrGetFixAllAction(actions:Map<String, CodeAction>, diagnostic:Diagnostic):CodeAction {
+		// Use existing action with this name.
+		if (actions.exists(TITLE_FIX_ALL)) {
+			var action = actions.get(TITLE_FIX_ALL);
+			action.diagnostics.push(diagnostic);
+			return action;
+		}
+		// Create a new action with this name.
+		var action = new CodeAction(TITLE_FIX_ALL, CodeActionKind.SourceFixAll);
+		action.diagnostics = [diagnostic];
+		action.edit = new WorkspaceEdit();
+		actions.set(TITLE_FIX_ALL, action);
 		return action;
 	}
 
@@ -358,6 +411,8 @@ class CheckstyleCodeActions {
 	function insertAction(actions:Map<String, CodeAction>, title:String, document:TextDocument, pos:Position, diagnostic:Diagnostic, insertText:String) {
 		var action:CodeAction = createOrGetAction(actions, title, diagnostic);
 		action.edit.insert(document.uri, pos, insertText);
+		var fixAll:CodeAction = createOrGetFixAllAction(actions, diagnostic);
+		fixAll.edit.insert(document.uri, pos, insertText);
 	}
 
 	/**
@@ -374,6 +429,8 @@ class CheckstyleCodeActions {
 	function replaceAction(actions:Map<String, CodeAction>, title:String, document:TextDocument, range:Range, diagnostic:Diagnostic, replaceText:String) {
 		var action:CodeAction = createOrGetAction(actions, title, diagnostic);
 		action.edit.replace(document.uri, range, replaceText);
+		var fixAll:CodeAction = createOrGetFixAllAction(actions, diagnostic);
+		fixAll.edit.replace(document.uri, range, replaceText);
 	}
 
 	/**
@@ -389,6 +446,8 @@ class CheckstyleCodeActions {
 	function deleteAction(actions:Map<String, CodeAction>, title:String, document:TextDocument, range:Range, diagnostic:Diagnostic) {
 		var action:CodeAction = createOrGetAction(actions, title, diagnostic);
 		action.edit.delete(document.uri, range);
+		var fixAll:CodeAction = createOrGetFixAllAction(actions, diagnostic);
+		fixAll.edit.delete(document.uri, range);
 	}
 }
 
