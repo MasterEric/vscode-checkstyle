@@ -134,6 +134,8 @@ class CheckstyleCodeActions {
 				makeIndentationAction(document, actions, diag, message);
 			case ModifierOrderCheck:
 				makeModifierOrderAction(document, actions, diag, message);
+			case NeedBraces:
+				makeNeedBracesAction(document, actions, diag, message);
 			case RedundantModifierCheck:
 				makeRedundantModifierAction(document, actions, diag, message);
 			case StringLiteralCheck:
@@ -262,6 +264,59 @@ class CheckstyleCodeActions {
 		replaceAction(actions, "Adjust modifier order", document, modifierRange, diag, expected);
 	}
 
+	/**
+	 * Creates a code action to resolve the `NeedBraces` issue.
+	 * @see http://haxecheckstyle.github.io/docs/haxe-checkstyle/needbraces.html
+	 * 
+	 * Examples of code to correct:
+	 * @see https://github.com/HaxeCheckstyle/haxe-checkstyle/blob/dev/test/checkstyle/checks/block/NeedBracesCheckTest.hx
+	 */
+	function makeNeedBracesAction(document:TextDocument, actions:Map<String, CodeAction>, diag:Diagnostic, message:String) {
+		// This rule handles a total of four cases.
+		// Either there is a missing public/private modifier or a redundant public/private modifier..
+		var code:checkstyle.checks.block.NeedBracesCheck.NeedBracesCheckToken = cast diag.code;
+
+		// Check if the issue is with allowSingleLineStatement.
+		var reg = ~/Body of "([_a-z]+)" on same line/;
+		if (reg.match(message)) {
+			// Violation of allowSingleLineStatement.
+			// Add a code action to move the code to the next line, with appropriate indentation.
+
+			// Start at one level of indent.
+			// TODO: Can we get the current tab size/style from the VSCode settings?
+			var indent = "  ";
+			// Get the indentation of the text before the violation.
+			var prefix = document.getText(new Range(diag.range.start.line, 0, diag.range.start.line, diag.range.start.character));
+			var prefixReg = ~/^(\s+).*/;
+			// Add in any indentation the parent statement had.
+			if (prefixReg.match(prefix)) {
+				indent += prefixReg.matched(1);
+			}
+
+			// Insert a new line at the beginning of the problem range.
+			insertAction(actions, "Move statement body to next line", document, diag.range.start, diag, '\n$indent');
+		} else {
+			// Else, we need to add braces to the code block!
+			var prevLine = document.lineAt(diag.range.start.line - 1);
+			var endOfPrevLine = prevLine.range.end;
+
+			var endOfLine = diag.range.end;
+
+			// Start with no indentation.
+			var prefix = '';
+			// Add in any indentation the parent statement had.
+			var prefixReg = ~/^(\s+).*/;
+			if (prefixReg.match(prevLine.text)) {
+				prefix += prefixReg.matched(1);
+			}
+
+			// Create two actions for this, one to add the opening brace and one for the closing brace.
+			// These will be later combined into one code action.
+			insertAction(actions, "Add braces to statement", document, endOfPrevLine, diag, ' {');
+			insertAction(actions, "Add braces to statement", document, endOfLine, diag, '\n$prefix}');
+		}
+	}
+    
 	/**
 	 * Creates a code action to resolve the `RedundantModifier` issue.
 	 * @see http://haxecheckstyle.github.io/docs/haxe-checkstyle/redundantmodifier.html
@@ -460,6 +515,7 @@ enum abstract CheckNames(String) from String {
 	var FinalCheck = "Final";
 	var IndentationCheck = "Indentation";
 	var ModifierOrderCheck = "ModifierOrder";
+	var NeedBraces = "NeedBraces";
 	var RedundantModifierCheck = "RedundantModifier";
 	var StringLiteralCheck = "StringLiteral";
 	var TraceCheck = "Trace";
