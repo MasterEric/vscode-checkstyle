@@ -52,6 +52,15 @@ vscode-checkstyle comes with JSON schemas for `checkstyle.json` and `checkstyle-
 
 See [Haxe-Checkstyle docs](http://haxecheckstyle.github.io/docs) or use JSON Schema tooltips for documentation on checks.
 
+## Compiling vscode-checkstyle
+
+```
+git clone https://github.com/vshaxe/vscode-checkstyle.git
+npm install
+lix download
+haxe build.hxml
+```
+
 ## Limitations
 
 * it doesn't see violations in your project files until you open them

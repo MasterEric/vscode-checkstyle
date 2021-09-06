@@ -5,6 +5,9 @@ import vscode.DiagnosticRelatedInformation;
 import vscode.Location;
 import vscode.Range;
 
+/**
+ * This class converts a checkstyle message into a VSCode Diagnostic.
+ */
 class VSCodeReporter extends BaseReporter {
 	public var diagnostics:Array<Diagnostic> = [];
 

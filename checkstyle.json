@@ -20,6 +20,9 @@
                 "severity": "INFO"
             },
             "type": "Trace"
+        },
+        {
+            "type": "NeedBraces"
         }
     ]
 }
